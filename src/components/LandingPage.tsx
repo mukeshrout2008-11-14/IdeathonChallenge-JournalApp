@@ -13,13 +13,18 @@ import {
   User,
   Eye,
   EyeOff,
-  AlertCircle
+  AlertCircle,
+  HelpCircle,
+  X,
+  ExternalLink,
+  Send
 } from 'lucide-react';
 import { 
   signInWithGoogle, 
   signInWithApple, 
   signInWithEmail, 
-  signUpWithEmail 
+  signUpWithEmail,
+  sendPasswordReset
 } from '../lib/firebase';
 
 interface LandingPageProps {
@@ -28,7 +33,7 @@ interface LandingPageProps {
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onSignInSuccess, onError }) => {
-  const [authMethod, setAuthMethod] = useState<'google' | 'apple' | 'email-signin' | 'email-signup'>('google');
+  const [authMethod, setAuthMethod] = useState<'google' | 'apple' | 'email-signin' | 'email-signup' | 'reset-pw'>('google');
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'signin' | 'signup'>('signin');
   
@@ -38,10 +43,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSignInSuccess, onErr
   const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authErrorCode, setAuthErrorCode] = useState<string | null>(null);
+  const [showAppleHelpModal, setShowAppleHelpModal] = useState(false);
+  
+  // Password Reset state
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetSentSuccess, setResetSentSuccess] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   const handleGoogleSignIn = async () => {
     try {
       setAuthError(null);
+      setAuthErrorCode(null);
       setIsLoading(true);
       setAuthMethod('google');
       const user = await signInWithGoogle();
@@ -69,6 +84,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSignInSuccess, onErr
   const handleAppleSignIn = async () => {
     try {
       setAuthError(null);
+      setAuthErrorCode(null);
       setIsLoading(true);
       setAuthMethod('apple');
       const user = await signInWithApple();
@@ -80,10 +96,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSignInSuccess, onErr
         return;
       }
 
-      if (err.code === 'auth/operation-not-allowed') {
-        const msg = 'Apple Sign-In is not yet enabled in Firebase Authentication. You can enable Apple in the Firebase Console under Authentication > Sign-in method, or sign in using Google or Email.';
-        setAuthError(msg);
-        onError(msg);
+      if (
+        err.code === 'auth/operation-not-allowed' || 
+        err.code === 'auth/configuration-not-found' || 
+        err.message?.includes('Apple Sign-In is not yet enabled')
+      ) {
+        setShowAppleHelpModal(true);
         return;
       }
 
@@ -98,6 +116,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSignInSuccess, onErr
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
+    setAuthErrorCode(null);
 
     if (!email.trim() || !email.includes('@')) {
       setAuthError('Please enter a valid email address.');
@@ -122,10 +141,38 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSignInSuccess, onErr
       }
     } catch (err: any) {
       console.warn('Email auth notification:', err?.message || err);
-      setAuthError(err?.message || 'Authentication failed. Please check your credentials.');
+      const code = err?.code || '';
+      setAuthErrorCode(code);
+      
+      if (code === 'auth/email-already-in-use') {
+        setAuthError('An account with this email already exists. You can sign in with Google or sign in with your password below.');
+      } else if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+        setAuthError('Invalid credentials. If you previously signed in with Google, please click "Continue with Google" or reset your password.');
+      } else {
+        setAuthError(err?.message || 'Authentication failed. Please check your credentials.');
+      }
       onError(err?.message || 'Authentication failed.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handlePasswordResetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError(null);
+    if (!resetEmail.trim() || !resetEmail.includes('@')) {
+      setResetError('Please enter a valid email address.');
+      return;
+    }
+
+    try {
+      setIsResetting(true);
+      await sendPasswordReset(resetEmail.trim());
+      setResetSentSuccess(true);
+    } catch (err: any) {
+      setResetError(err.message || 'Failed to send password reset email.');
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -151,7 +198,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSignInSuccess, onErr
               id="header-google-sign-in-btn"
               onClick={handleGoogleSignIn}
               disabled={isLoading}
-              className="inline-flex items-center justify-center px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-[#202E2B] text-[#FAF7F2] hover:bg-[#2C3E3A] transition-all shadow-xs disabled:opacity-50 border border-[#202E2B]"
+              className="inline-flex items-center justify-center px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-[#202E2B] text-[#FAF7F2] hover:bg-[#2C3E3A] transition-all shadow-xs disabled:opacity-50 border border-[#202E2B] cursor-pointer"
             >
               {isLoading && authMethod === 'google' ? (
                 <span className="flex items-center space-x-2">
@@ -252,8 +299,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSignInSuccess, onErr
               onClick={() => {
                 setActiveTab('signin');
                 setAuthError(null);
+                setAuthErrorCode(null);
               }}
-              className={`flex-1 pb-2.5 text-xs font-bold text-center border-b-2 transition-colors ${
+              className={`flex-1 pb-2.5 text-xs font-bold text-center border-b-2 transition-colors cursor-pointer ${
                 activeTab === 'signin'
                   ? 'border-[#2D4A43] text-[#2D4A43]'
                   : 'border-transparent text-[#8C7E72] hover:text-[#4A3B32]'
@@ -267,8 +315,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSignInSuccess, onErr
               onClick={() => {
                 setActiveTab('signup');
                 setAuthError(null);
+                setAuthErrorCode(null);
               }}
-              className={`flex-1 pb-2.5 text-xs font-bold text-center border-b-2 transition-colors ${
+              className={`flex-1 pb-2.5 text-xs font-bold text-center border-b-2 transition-colors cursor-pointer ${
                 activeTab === 'signup'
                   ? 'border-[#2D4A43] text-[#2D4A43]'
                   : 'border-transparent text-[#8C7E72] hover:text-[#4A3B32]'
@@ -278,11 +327,40 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSignInSuccess, onErr
             </button>
           </div>
 
-          {/* Error Message Box */}
+          {/* Error Message Box & Smart Recovery Options */}
           {authError && (
-            <div className="mb-4 p-3 rounded-xl bg-[#FDF2F0] border border-[#F5D5D0] text-[#9C4124] text-xs flex items-start space-x-2">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <span className="leading-relaxed">{authError}</span>
+            <div className="mb-4 p-3.5 rounded-xl bg-[#FDF2F0] border border-[#F5D5D0] text-[#9C4124] text-xs space-y-2">
+              <div className="flex items-start space-x-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span className="leading-relaxed font-medium">{authError}</span>
+              </div>
+
+              {/* Smart Actions for Provider Mismatches */}
+              {(authErrorCode === 'auth/email-already-in-use' || 
+                authErrorCode === 'auth/invalid-credential' || 
+                authErrorCode === 'auth/wrong-password') && (
+                <div className="pt-2 border-t border-[#F5D5D0]/80 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-[#202E2B] text-[#FAF7F2] hover:bg-[#2C3E3A] transition-colors cursor-pointer"
+                  >
+                    Try Google Sign-In
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResetEmail(email);
+                      setShowResetModal(true);
+                      setResetSentSuccess(false);
+                      setResetError(null);
+                    }}
+                    className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-[#FFFFFF] text-[#9C4124] border border-[#F5D5D0] hover:bg-[#FAF8F5] transition-colors cursor-pointer"
+                  >
+                    Reset Password
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -322,7 +400,23 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSignInSuccess, onErr
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#4A3B32] mb-1.5">Password</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-[#4A3B32]">Password</label>
+                {activeTab === 'signin' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResetEmail(email);
+                      setShowResetModal(true);
+                      setResetSentSuccess(false);
+                      setResetError(null);
+                    }}
+                    className="text-[11px] font-medium text-[#8C5E3C] hover:text-[#2D4A43] transition-colors cursor-pointer hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
               <div className="relative">
                 <KeyRound className="w-4 h-4 text-[#A69D92] absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
@@ -337,7 +431,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSignInSuccess, onErr
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#A69D92] hover:text-[#4A3B32] focus:outline-none"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#A69D92] hover:text-[#4A3B32] focus:outline-none cursor-pointer"
                   title={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -412,6 +506,164 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSignInSuccess, onErr
         </div>
       </main>
 
+      {/* Apple Sign-In Help & Guidance Modal */}
+      {showAppleHelpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#182624]/60 backdrop-blur-xs">
+          <div className="bg-[#FAF7F2] border border-[#E8E2D8] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-5 border-b border-[#EAE4DC] flex items-center justify-between bg-[#FFFFFF]">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-[#000000] text-[#FFFFFF] flex items-center justify-center">
+                  <svg className="w-4 h-4 fill-current" viewBox="0 0 170 170">
+                    <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.7-3.04-7.66-7.79-11.89-14.24-5.35-8.21-9.69-17.6-13.02-28.17-3.33-10.57-5-20.67-5-30.3 0-12.87 3.33-23.75 10-32.64 6.67-8.89 15.11-13.39 25.32-13.5 4.58 0 9.77 1.25 15.58 3.75 5.81 2.5 9.77 3.79 11.88 3.86 1.76 0 5.86-1.37 12.31-4.11 6.45-2.73 12.18-3.92 17.19-3.57 13.06.84 23.36 5.62 30.91 14.34-11.45 6.94-17.07 16.5-16.86 28.69.21 9.47 3.84 17.38 10.9 23.73 7.06 6.35 15.34 9.94 24.84 10.77-2.34 7.22-5.35 14.54-9.03 21.96zM119.22 31.84c0-7.07 2.58-13.68 7.74-19.83 5.16-6.15 11.53-9.98 19.12-11.5-.1 1.09-.26 2.06-.47 2.91-.74 3.7-2.31 7.28-4.7 10.75-2.39 3.47-5.38 6.31-8.98 8.52-3.6 2.21-7.24 3.59-10.92 4.14-.32-1.63-.79-3.29-1.79-4.99z" />
+                  </svg>
+                </div>
+                <h3 className="font-serif font-bold text-base text-[#182624]">Apple Sign-In Setup Notice</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAppleHelpModal(false)}
+                className="p-1 rounded-lg text-[#737C78] hover:text-[#182624] hover:bg-[#FAF7F2]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs text-[#525B58] leading-relaxed">
+              <div className="p-3.5 rounded-xl bg-[#EAE2D5] border border-[#DDD3C2] text-[#4A3B32]">
+                <strong className="block text-[#182624] font-semibold mb-1">Why is Apple Sign-In unavailable?</strong>
+                Apple Sign-In requires connecting your Apple Developer Services ID, Key ID, and Private Key (.p8) in the Firebase Console.
+              </div>
+
+              <div className="space-y-2">
+                <span className="font-bold text-[#182624] block">How to enable Apple Sign-In:</span>
+                <ol className="list-decimal list-inside space-y-1.5 text-[#4A3B32]">
+                  <li>Go to <strong>Firebase Console &gt; Authentication &gt; Sign-in method</strong>.</li>
+                  <li>Click <strong>Apple</strong> in the provider list.</li>
+                  <li>Enter your Apple <strong>Services ID, Team ID, Key ID</strong>, and upload your <strong>Private Key</strong>.</li>
+                  <li>Save changes and Apple Sign-In will immediately be activated.</li>
+                </ol>
+              </div>
+
+              <div className="pt-3 border-t border-[#EAE4DC] flex flex-col sm:flex-row items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAppleHelpModal(false);
+                    handleGoogleSignIn();
+                  }}
+                  className="w-full sm:w-auto px-4 py-2 text-xs font-bold rounded-xl bg-[#2D4A43] hover:bg-[#233A34] text-[#FAF7F2] transition-colors cursor-pointer shadow-xs"
+                >
+                  Continue with Google Instead
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAppleHelpModal(false)}
+                  className="w-full sm:w-auto px-4 py-2 text-xs font-semibold rounded-xl bg-[#FFFFFF] border border-[#DCD3C4] text-[#4A3B32] hover:bg-[#FAF7F2] transition-colors cursor-pointer"
+                >
+                  Use Email/Password
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Password Reset Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#182624]/60 backdrop-blur-xs">
+          <div className="bg-[#FAF7F2] border border-[#E8E2D8] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-5 border-b border-[#EAE4DC] flex items-center justify-between bg-[#FFFFFF]">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-[#EAE2D5] text-[#8C5E3C] flex items-center justify-center border border-[#DDD3C2]">
+                  <KeyRound className="w-4 h-4" />
+                </div>
+                <h3 className="font-serif font-bold text-base text-[#182624]">Reset Your Password</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowResetModal(false)}
+                className="p-1 rounded-lg text-[#737C78] hover:text-[#182624] hover:bg-[#FAF7F2]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              {resetSentSuccess ? (
+                <div className="space-y-4 text-center">
+                  <div className="w-12 h-12 rounded-full bg-[#D2E0DC] text-[#2D4A43] flex items-center justify-center mx-auto">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                  <h4 className="font-serif font-bold text-[#182624] text-base">Password Reset Link Sent</h4>
+                  <p className="text-xs text-[#525B58] leading-relaxed">
+                    We have sent a secure password reset link to <strong className="text-[#182624]">{resetEmail}</strong>. Please check your inbox (and spam folder) to set a new password.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowResetModal(false)}
+                    className="w-full py-2.5 text-xs font-bold rounded-xl bg-[#2D4A43] text-[#FAF7F2] hover:bg-[#233A34] transition-colors cursor-pointer"
+                  >
+                    Back to Sign In
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handlePasswordResetSubmit} className="space-y-4 text-left">
+                  <p className="text-xs text-[#525B58] leading-relaxed">
+                    Enter the email address associated with your ReflectAI account. We will send you a password reset link.
+                  </p>
+
+                  {resetError && (
+                    <div className="p-3 rounded-xl bg-[#FDF2F0] border border-[#F5D5D0] text-[#9C4124] text-xs flex items-start space-x-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <span>{resetError}</span>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#4A3B32] mb-1.5">Email Address</label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-[#A69D92] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="email"
+                        required
+                        value={resetEmail}
+                        onChange={(e) => setResetEmail(e.target.value)}
+                        placeholder="name@example.com"
+                        className="w-full pl-10 pr-3 py-2.5 text-xs bg-[#FAF8F5] border border-[#DCD3C4] rounded-xl focus:border-[#2D4A43] focus:bg-[#FFFFFF] focus:outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-end space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowResetModal(false)}
+                      className="px-3.5 py-2 text-xs font-semibold rounded-xl text-[#737C78] hover:text-[#182624] hover:bg-[#FAF8F5] transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isResetting}
+                      className="px-4 py-2 text-xs font-bold rounded-xl bg-[#2D4A43] text-[#FAF7F2] hover:bg-[#233A34] transition-colors flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer shadow-xs"
+                    >
+                      {isResetting ? (
+                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Send Reset Link</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <footer className="border-t border-[#EAE4DC] bg-[#FAF7F2] py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-[#737C78] gap-4">
@@ -425,4 +677,5 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onSignInSuccess, onErr
     </div>
   );
 };
+
 

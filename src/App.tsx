@@ -77,6 +77,22 @@ export default function App() {
     }
   };
 
+  // Global Keyboard Shortcuts
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowAskPastSelf((prev) => !prev);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        setShowCognitiveRadar((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
   // Toast Management
   const addToast = useCallback((type: 'success' | 'error' | 'info', message: string, actionLabel?: string, onAction?: () => void) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -316,6 +332,7 @@ export default function App() {
             setPendingEntryToUnlock(null);
           }}
           mode={vaultModalMode}
+          entryIdToLockUnlock={activeEntry?.id}
           vaultSettings={vaultSettings}
           onUpdateVaultSettings={handleUpdateVaultSettings}
           onUnlockSuccess={() => {

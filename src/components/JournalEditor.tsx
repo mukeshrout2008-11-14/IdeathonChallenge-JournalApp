@@ -125,6 +125,8 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   // Sync local title when entry id or entry title updates externally
   useEffect(() => {
     setLocalTitle(entry.title || '');
+    stopSpeaking();
+    setSpeakingMessageId(null);
   }, [entry.id, entry.title]);
 
   const handleTitleCommit = () => {
@@ -245,12 +247,13 @@ ${template.frameworkQuestions.map(q => `${q}\n\n[Write your reflection here...]\
 
     const updatedMessages = [...(entry.messages || []), userMessage];
     
-    // Auto-update title if it's the first message and title is default
-    let updatedTitle = entry.title;
+    // Auto-update title if it's the first message and title is default, or respect current local title
+    let updatedTitle = localTitle.trim() || entry.title;
     if (updatedTitle === 'Untitled Reflection' || updatedTitle === 'New Reflection') {
       const snippet = text.slice(0, 45).replace(/\n/g, ' ');
       updatedTitle = snippet.length < text.length ? `${snippet}...` : snippet;
     }
+    setLocalTitle(updatedTitle);
 
     const optimisticEntry: JournalEntry = {
       ...entry,

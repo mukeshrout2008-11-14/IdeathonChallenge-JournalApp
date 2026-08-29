@@ -106,6 +106,18 @@ export const AskPastSelfModal: React.FC<AskPastSelfModalProps> = ({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {entries.length === 0 && (
+            <div className="p-4 rounded-xl bg-[#F4EFE6] border border-[#E2D8C7] text-xs text-[#5A5046] flex items-start space-x-3">
+              <BookOpen className="w-5 h-5 text-[#8C5E3C] flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-serif font-bold text-[#182624] text-sm mb-1">Your Journal Archive is Empty</p>
+                <p className="leading-relaxed">
+                  Start writing reflections in the main editor. As your journal grows, "Ask Past Self" will synthesize answers, patterns, and lessons directly from your past writings.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Search Form */}
           <form onSubmit={handleAsk} className="space-y-3">
             <label className="block text-xs font-bold uppercase tracking-wider text-[#737C78]">

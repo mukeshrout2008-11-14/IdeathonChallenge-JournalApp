@@ -8,6 +8,7 @@ import {
   getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   updateProfile,
   signOut as fbSignOut, 
   onAuthStateChanged,
@@ -196,6 +197,28 @@ export async function checkRedirectAuthResult(): Promise<AppUser | null> {
 // Direct Sign in with Redirect
 export async function signInWithGoogleRedirect(): Promise<void> {
   await signInWithRedirect(auth, googleProvider);
+}
+
+// Send Password Reset Email
+export async function sendPasswordReset(email: string): Promise<void> {
+  if (!email || !email.trim()) {
+    throw new Error('Please provide a valid email address to send a password reset link.');
+  }
+  try {
+    await sendPasswordResetEmail(auth, email.trim());
+  } catch (error: any) {
+    let message = 'Failed to send password reset email.';
+    if (error?.code === 'auth/user-not-found') {
+      message = 'No account found with this email address.';
+    } else if (error?.code === 'auth/invalid-email') {
+      message = 'Please enter a valid email address.';
+    } else if (error?.code === 'auth/too-many-requests') {
+      message = 'Too many requests. Please wait a moment before trying again.';
+    }
+    const customErr = new Error(message);
+    (customErr as any).code = error?.code;
+    throw customErr;
+  }
 }
 
 // Sign Out
