@@ -1,0 +1,12 @@
+{
+  "projectId": "ideathonchallenge-journalapp",
+  "appId": "1:466814135899:web:02013e2d7a6300342e597e",
+  "apiKey": "AIzaSyDLp7Ae5OKEVhdeaPPwFg2htaHWaHic8y4",
+  "authDomain": "ideathonchallenge-journalapp.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-e1c3e3c1-885c-46e9-9148-e82f8b900521",
+  "storageBucket": "ideathonchallenge-journalapp.firebasestorage.app",
+  "messagingSenderId": "466814135899",
+  "measurementId": "",
+  "oAuthClientId": "466814135899-9b1mc6a8obpe5nt1mdc0rcgctc0ms4un.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
+}
